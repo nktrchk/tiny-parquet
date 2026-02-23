@@ -6,6 +6,7 @@ parquet-reader/target/
 parquet-writer/target/
 target/
 
+
 # Intermediate wasm-bindgen output (final WASM lives in wasm/)
 parquet-writer/pkg/
 parquet-reader/pkg/
@@ -13,6 +14,7 @@ parquet-reader/parquet_reader.js
 parquet-reader/parquet_reader_bg.wasm
 
 # Temporary files
+PARQUET_WASM_ROADMAP.md
 parquet-writer/tmp/
 tmp/
 *.tmp
