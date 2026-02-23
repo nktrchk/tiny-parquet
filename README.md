@@ -15,7 +15,7 @@
   ║   ██║     ██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████╗   ██║      ║
   ║   ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝ ╚══▀▀═╝  ╚═════╝ ╚══════╝   ╚═╝      ║
   ║                                                                 ║
-  ║   Read & write Apache Parquet in 319KB of WASM.                 ║
+  ║   Read & write Apache Parquet in 326KB of WASM.                 ║
   ║   Two functions. Zero dependencies.                             ║
   ║                                                                 ║
   ╚═════════════════════════════════════════════════════════════════╝
