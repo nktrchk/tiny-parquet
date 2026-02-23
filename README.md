@@ -39,7 +39,7 @@
 You're building on the edge. You need Parquet. But:
 
 ```
-  parquet-wasm    3,500 KB   ❌  Too fat for Vercel Edge & CF free tier
+  parquet-wasm    3,500 KB  ❌  Too fat for Vercel Edge & CF free tier
   duckdb-wasm    8,000 KB   ❌  Way too fat
   parquetjs        500 KB   ❌  Node.js only
 
@@ -123,12 +123,12 @@ import { writeParquet } from 'tiny-parquet/writer';
 
 ```
   ┌──────────────────┬─────────┬──────────────────────────────────┬───────────────────────────┐
-  │ Package          │ Size    │ CF Workers free (1MB) │ Vercel Edge (1MB soft) │
+  │ Package          │ Size    │ CF Workers free (1MB) │ Vercel Edge (1MB soft)               │
   ├──────────────────┼─────────┼──────────────────────────────────┼───────────────────────────┤
-  │ parquet-wasm     │ 3.5 MB  │        ❌ No                      │        ❌ No               │
-  │ duckdb-wasm      │ 8.0 MB  │        ❌ No                      │        ❌ No               │
-  │ parquetjs        │ 500 KB  │        ❌ Node only               │        ❌ Node only        │
-  │ tiny-parquet     │ 319 KB  │        ✅ Yes                     │        ✅ Yes              │
+  │ parquet-wasm     │ 3.5 MB  │        ❌ No                      │        ❌ No              │
+  │ duckdb-wasm      │ 8.0 MB  │        ❌ No                      │        ❌ No              │
+  │ parquetjs        │ 500 KB  │        ❌ Node only               │        ❌ Node only       │
+  │ tiny-parquet     │ 319 KB  │        ✅ Yes                     │        ✅ Yes             │
   └──────────────────┴─────────┴──────────────────────────────────┴───────────────────────────┘
 ```
 
@@ -137,9 +137,9 @@ import { writeParquet } from 'tiny-parquet/writer';
 ## Anatomy
 
 ```
-  ┌────────────────────────────────────────────────┐
-  │              tiny-parquet                       │
-  │                                                │
+  ┌───────────────────────────────────────────────┐
+  │              tiny-parquet                     │
+  │                                               │
   │   ┌─────────────┐      ┌──────────────┐       │
   │   │ writer.wasm │      │ reader.wasm  │       │
   │   │   179 KB    │      │   140 KB     │       │
@@ -148,15 +148,15 @@ import { writeParquet } from 'tiny-parquet/writer';
   │   │  parquet2   │      │  parquet2    │       │
   │   │  + snappy   │      │  + snappy    │       │
   │   └──────┬──────┘      └──────┬───────┘       │
-  │          │                    │                │
+  │          │                    │               │
   │   ┌──────▼──────┐      ┌──────▼───────┐       │
   │   │ writer.js   │      │ reader.js    │       │
   │   │  JS glue    │      │  JS glue     │       │
   │   │  ~120 LOC   │      │  ~100 LOC    │       │
   │   └─────────────┘      └──────────────┘       │
-  │                                                │
-  │          Total: 319 KB  ·  337 LOC             │
-  └────────────────────────────────────────────────┘
+  │                                               │
+  │          Total: 319 KB  ·  337 LOC            │
+  └───────────────────────────────────────────────┘
 ```
 
 ---
