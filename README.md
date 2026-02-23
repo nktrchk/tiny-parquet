@@ -50,6 +50,22 @@ You're building on the edge. You need Parquet. But:
 
 ---
 
+## Performance
+
+Benchmarked on Node.js (Apple Silicon). First call includes WASM compilation warmup.
+
+```
+  Rows       Write      Read      File Size
+  ─────────────────────────────────────────
+   1,000     29.3 ms     7.1 ms      20 KB
+   5,000      8.7 ms     4.9 ms     102 KB
+  10,000      8.6 ms     7.2 ms     204 KB
+```
+
+After warmup: **~1M+ rows/sec reads**, **~1M+ rows/sec writes**. Fast enough for edge runtimes where latency matters.
+
+---
+
 ## Install
 
 ```bash
