@@ -138,14 +138,14 @@ import { writeParquet } from 'tiny-parquet/writer';
 ## Size Comparison
 
 ```
-  ┌──────────────────┬─────────┬──────────────────────────────────┬───────────────────────────┐
-  │ Package          │ Size    │ CF Workers free (1MB) │ Vercel Edge (1MB soft)               │
-  ├──────────────────┼─────────┼──────────────────────────────────┼───────────────────────────┤
-  │ parquet-wasm     │ 3.5 MB  │        ❌ No                      │        ❌ No              │
-  │ duckdb-wasm      │ 8.0 MB  │        ❌ No                      │        ❌ No              │
-  │ parquetjs        │ 500 KB  │        ❌ Node only               │        ❌ Node only       │
-  │ tiny-parquet     │ 319 KB  │        ✅ Yes                     │        ✅ Yes             │
-  └──────────────────┴─────────┴──────────────────────────────────┴───────────────────────────┘
+  ┌──────────────────┬─────────┬────────────────────────┬────────────────────────┐
+  │ Package          │ Size    │ CF Workers free (1MB)  │ Vercel Edge (1MB soft) │
+  ├──────────────────┼─────────┼────────────────────────┼────────────────────────┤
+  │ parquet-wasm     │ 3.5 MB  │        ❌ No           │        ❌ No            │
+  │ duckdb-wasm      │ 8.0 MB  │        ❌ No           │        ❌ No            │
+  │ parquetjs        │ 500 KB  │        ❌ Node only    │        ❌ Node only     │
+  │ tiny-parquet     │ 326 KB  │        ✅ Yes          │        ✅ Yes           │
+  └──────────────────┴─────────┴────────────────────────┴────────────────────────┘
 ```
 
 ---
@@ -154,7 +154,7 @@ import { writeParquet } from 'tiny-parquet/writer';
 
 ```
   ┌───────────────────────────────────────────────┐
-  │              tiny-parquet                     │
+  │                tiny-parquet                   │
   │                                               │
   │   ┌─────────────┐      ┌──────────────┐       │
   │   │ writer.wasm │      │ reader.wasm  │       │
