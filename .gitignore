@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Rust build artifacts (cargo build output)
+parquet-reader/target/
+parquet-writer/target/
+target/
+
+# Intermediate wasm-bindgen output (final WASM lives in wasm/)
+parquet-writer/pkg/
+parquet-reader/pkg/
+parquet-reader/parquet_reader.js
+parquet-reader/parquet_reader_bg.wasm
+
+# Temporary files
+parquet-writer/tmp/
+tmp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build debug
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
