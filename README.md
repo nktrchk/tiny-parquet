@@ -41,7 +41,7 @@
 You're building on the edge. You need Parquet. But:
 
 ```
-  parquet-wasm    3,500 KB  ❌  Too fat for Vercel Edge & CF free tier
+  parquet-wasm   3,500 KB   ❌  Too fat for Vercel Edge & CF free tier
   duckdb-wasm    8,000 KB   ❌  Way too fat
   parquetjs        500 KB   ❌  Node.js only
 
@@ -54,17 +54,19 @@ You're building on the edge. You need Parquet. But:
 
 ## Performance
 
-Benchmarked on Node.js (Apple Silicon). First call includes WASM compilation warmup.
+Benchmarked on Node.js (Apple Silicon). After WASM warmup:
 
 ```
-  Rows       Write      Read      File Size
-  ─────────────────────────────────────────
-   1,000     29.3 ms     7.1 ms      20 KB
-   5,000      8.7 ms     4.9 ms     102 KB
-  10,000      8.6 ms     7.2 ms     204 KB
+  Rows       Write       Read       Write rows/s    Read rows/s    File Size
+  ───────────────────────────────────────────────────────────────────────────
+    1,000      4.3 ms     6.7 ms        231,707/s      149,710/s       17 KB
+    5,000      4.3 ms     2.6 ms      1,154,868/s    1,939,331/s       84 KB
+   10,000      6.9 ms     4.7 ms      1,446,532/s    2,137,247/s      168 KB
+   50,000     30.8 ms    17.7 ms      1,625,596/s    2,818,383/s      838 KB
+  100,000     52.0 ms    31.4 ms      1,922,572/s    3,182,572/s    1,675 KB
 ```
 
-After warmup: **~1M+ rows/sec reads**, **~1M+ rows/sec writes**. Fast enough for edge runtimes where latency matters.
+**~2M writes/sec, ~3M reads/sec** at scale. Fast enough for edge runtimes where latency matters.
 
 ---
 
