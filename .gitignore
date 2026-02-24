@@ -18,7 +18,9 @@ PARQUET_WASM_ROADMAP.md
 parquet-writer/tmp/
 tmp/
 *.tmp
-_test
+_test/node_modules/
+_test/package-lock.json
+_test/package.json
 
 # OS files
 .DS_Store
