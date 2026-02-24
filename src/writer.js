@@ -101,14 +101,14 @@ function handleError(f, args) {
 // ── WASM imports ─────────────────────────────────────────────────────────────
 function getImports() {
   const wbg = { __proto__: null };
-  wbg.__wbg___wbindgen_is_falsy_e623e5b815413d00 = (a) => !getObject(a);
-  wbg.__wbg___wbindgen_number_get_8ff4255516ccad3e = (arg0, arg1) => {
+  wbg.__wbg___wbindgen_is_falsy_7b47cfa682bded80 = (a) => !getObject(a);
+  wbg.__wbg___wbindgen_number_get_3330675b4e5c3680 = (arg0, arg1) => {
     const obj = getObject(arg1);
     const ret = typeof obj === 'number' ? obj : undefined;
     getDV().setFloat64(arg0 + 8, isLikeNone(ret) ? 0 : ret, true);
     getDV().setInt32(arg0, !isLikeNone(ret), true);
   };
-  wbg.__wbg___wbindgen_string_get_72fb696202c56729 = (arg0, arg1) => {
+  wbg.__wbg___wbindgen_string_get_7b8bc463f6cbeefe = (arg0, arg1) => {
     const obj = getObject(arg1);
     const ret = typeof obj === 'string' ? obj : undefined;
     const ptr1 = isLikeNone(ret) ? 0 : passStringToWasm(ret, wasm.__wbindgen_export, wasm.__wbindgen_export2);
@@ -116,21 +116,21 @@ function getImports() {
     getDV().setInt32(arg0 + 4, len1, true);
     getDV().setInt32(arg0, ptr1, true);
   };
-  wbg.__wbg___wbindgen_throw_be289d5034ed271b = (a, b) => {
+  wbg.__wbg___wbindgen_throw_89ca9e2c67795ec1 = (a, b) => {
     throw new Error(getStringFromWasm(a, b));
   };
-  wbg.__wbg_get_9b94d73e6221f75c = (a, i) => addHeapObject(getObject(a)[i >>> 0]);
-  wbg.__wbg_get_b3ed3ad4be2bc8ac = (...args) => handleError((a, b) => {
+  wbg.__wbg_get_229657ec2da079cd = (a, i) => addHeapObject(getObject(a)[i >>> 0]);
+  wbg.__wbg_get_89f3a4c398b4872e = (...args) => handleError((a, b) => {
     return addHeapObject(Reflect.get(getObject(a), getObject(b)));
   }, args);
-  wbg.__wbg_isArray_d314bb98fcf08331 = (a) => Array.isArray(getObject(a));
-  wbg.__wbg_length_32ed9a279acd054c = (a) => getObject(a).length;
-  wbg.__wbg_length_35a7bace40f36eac = (a) => getObject(a).length;
-  wbg.__wbg_new_with_length_a2c39cbe88fd8ff1 = (a) => addHeapObject(new Uint8Array(a >>> 0));
-  wbg.__wbg_set_cc56eefd2dd91957 = (a, b, c) => getObject(a).set(getArrayU8(b, c));
+  wbg.__wbg_isArray_fe5201bfdab7e39d = (a) => Array.isArray(getObject(a));
+  wbg.__wbg_length_f875d3a041bab91a = (a) => getObject(a).length;
+  wbg.__wbg_length_feaf2a40e5f9755a = (a) => getObject(a).length;
+  wbg.__wbg_new_with_length_3217a89bbca17214 = (a) => addHeapObject(new Uint8Array(a >>> 0));
+  wbg.__wbg_set_76943c82a5e79352 = (a, b, c) => getObject(a).set(getArrayU8(b, c));
   wbg.__wbindgen_cast_0000000000000001 = (a, b) => addHeapObject(getStringFromWasm(a, b));
   wbg.__wbindgen_object_drop_ref = (a) => takeObject(a);
-  return { './parquet_flake_bg.js': wbg };
+  return { './parquet_writer_bg.js': wbg };
 }
 
 // ── WASM loader (universal) ──────────────────────────────────────────────────

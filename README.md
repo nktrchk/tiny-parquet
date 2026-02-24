@@ -54,19 +54,49 @@ You're building on the edge. You need Parquet. But:
 
 ## Performance
 
-Benchmarked on Node.js (Apple Silicon). After WASM warmup:
+Benchmarked on Node.js (Apple Silicon). After WASM warmup.
+
+**TL;DR** — A 100KB write takes ~5ms. A 10KB write takes ~1ms. Fast enough to write Parquet inside a Cloudflare Worker request without anyone noticing.
+
+### Per-Request Latency
+
+This is what matters on the edge — how long each write blocks your request:
 
 ```
-  Rows       Write       Read       Write rows/s    Read rows/s    File Size
-  ───────────────────────────────────────────────────────────────────────────
-    1,000      4.3 ms     6.7 ms        231,707/s      149,710/s       17 KB
-    5,000      4.3 ms     2.6 ms      1,154,868/s    1,939,331/s       84 KB
-   10,000      6.9 ms     4.7 ms      1,446,532/s    2,137,247/s      168 KB
-   50,000     30.8 ms    17.7 ms      1,625,596/s    2,818,383/s      838 KB
-  100,000     52.0 ms    31.4 ms      1,922,572/s    3,182,572/s    1,675 KB
+  File Size     Write      Read       Rows
+  ──────────────────────────────────────────
+  ~1KB          0.1 ms     0.4 ms       16
+  ~10KB         0.5 ms     0.4 ms      304
+  ~100KB        5.1 ms     2.8 ms    3,346
+  ~500KB       21.7 ms    15.7 ms   16,912
 ```
 
-**~2M writes/sec, ~3M reads/sec** at scale. Fast enough for edge runtimes where latency matters.
+Schema: 7 columns (string, int32, float64, timestamp, boolean, string, int64) — typical clickstream event.
+
+### Burst Capacity
+
+5,000 sequential writes of random 10–100KB payloads, single-threaded:
+
+```
+  Avg write:     1.17 ms
+  Max write:     8.47 ms
+  Throughput:    18.5 MB/s
+  Single thread: ~630 RPS
+```
+
+On edge runtimes (CF Workers, Vercel Edge) each request is its own isolate, so 5,000+ RPS is handled by the platform — **tiny-parquet just needs to finish each write in <10ms**, and it does.
+
+### Raw Throughput
+
+```
+  Rows       Write       Read       File Size
+  ──────────────────────────────────────────────
+    1,000      0.8 ms     0.4 ms       17 KB
+   10,000      6.8 ms     5.7 ms      168 KB
+  100,000     69.3 ms    48.7 ms    1,676 KB
+```
+
+**~20 MB/s writes, ~35 MB/s reads** at scale.
 
 ---
 
@@ -308,9 +338,9 @@ The WASM binaries are compiled from Rust using [`parquet2`](https://crates.io/cr
 # Writer
 cd parquet-writer
 cargo build --target wasm32-unknown-unknown --release
-wasm-bindgen target/wasm32-unknown-unknown/release/parquet_flake.wasm \
+wasm-bindgen target/wasm32-unknown-unknown/release/parquet_writer.wasm \
   --out-dir pkg --target web
-wasm-opt pkg/parquet_flake_bg.wasm -o ../wasm/writer.wasm -Oz
+wasm-opt pkg/parquet_writer_bg.wasm -o ../wasm/writer.wasm -Oz
 
 # Reader
 cd ../parquet-reader

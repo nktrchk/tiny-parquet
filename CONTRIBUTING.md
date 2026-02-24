@@ -30,9 +30,9 @@ That's it. No complex processes, no CLA.
 # Writer
 cd parquet-writer
 cargo build --target wasm32-unknown-unknown --release
-wasm-bindgen target/wasm32-unknown-unknown/release/parquet_flake.wasm \
+wasm-bindgen target/wasm32-unknown-unknown/release/parquet_writer.wasm \
   --out-dir pkg --target web
-wasm-opt pkg/parquet_flake_bg.wasm -o ../wasm/writer.wasm -Oz
+wasm-opt pkg/parquet_writer_bg.wasm -o ../wasm/writer.wasm -Oz
 
 # Reader
 cd ../parquet-reader
