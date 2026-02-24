@@ -1,0 +1,7 @@
+# Override GitHub language detection
+# Mark Rust source as vendored (excluded from language stats)
+*.rs linguist-vendored
+# Mark WASM binaries as vendored
+*.wasm linguist-vendored
+# Mark JS as the primary language
+*.js linguist-detectable
