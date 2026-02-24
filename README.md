@@ -32,6 +32,8 @@
   <a href="https://github.com/nktrchk/tiny-parquet"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square" alt="PRs Welcome"></a>
 </p>
 
+**tiny-parquet** is a JavaScript library for reading and writing [Apache Parquet](https://parquet.apache.org/) files. You pass in plain JS objects — it hands back compact Parquet bytes (and vice versa). All the heavy lifting (encoding, compression, serialization) happens inside a pair of tiny Rust/WASM modules, so there's no JS-side overhead and nothing to configure.
+
 ---
 
 ## Why
@@ -43,10 +45,10 @@ You're building on the edge. You need Parquet. But:
   duckdb-wasm    8,000 KB   ❌  Way too fat
   parquetjs        500 KB   ❌  Node.js only
 
-  tiny-parquet     319 KB   ✅  Runs everywhere
+  tiny-parquet     326 KB   ✅  Runs everywhere
 ```
 
-**tiny-parquet** gives you `readParquet` and `writeParquet` — two async functions backed by Rust + WASM via the [`parquet2`](https://crates.io/crates/parquet2) crate. That's it.
+**tiny-parquet** gives you two functions — `readParquet` and `writeParquet`. That's it.
 
 ---
 
