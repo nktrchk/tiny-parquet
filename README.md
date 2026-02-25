@@ -357,7 +357,7 @@ wasm-opt pkg/parquet_reader_bg.wasm -o ../wasm/reader.wasm -Oz
 - [ ] **Dictionary encoding** — 60-80% size reduction on low-cardinality columns
 - [ ] **Column pruning** — Read only the columns you need
 - [ ] **Row group control** — Multiple row groups per file
-- [ ] **Zstd compression** — Better ratio than Snappy
+- [ ] **Nested types** — Support for Lists and Structs
 
 ---
 
@@ -366,11 +366,18 @@ wasm-opt pkg/parquet_reader_bg.wasm -o ../wasm/reader.wasm -Oz
 **Q: How does this compare to `parquet-wasm`?**
 A: `parquet-wasm` is a full-featured Parquet library at 3.5MB. `tiny-parquet` is 10x smaller by supporting only flat schemas and essential types — perfect for edge runtimes where size limits apply.
 
-**Q: Can I read files written by DuckDB / Spark / PyArrow?**
-A: Yes — the reader handles standard Parquet files with flat schemas. Nested types (structs, lists, maps) are not supported yet.
+**Q: How do you keep it so small?**
+A: We focus on essential features for edge runtimes and use aggressive WASM optimization. Plus, with **subpath imports** (`tiny-parquet/writer` or `tiny-parquet/reader`), you only bundle the WASM you actually need. Our target is to stay under **600KB** total, which is still 5–10x smaller than other libraries.
 
-**Q: Is Snappy compression supported?**
-A: Yes, on both read and write. It's the default compression.
+**Q: What about Zstd and Nested Types?**
+A: **Nested Types** (Lists/Structs) are now planned! They add ~60KB but are worth it for complex events. **Zstd** is still under research—it adds ~150KB, so we're looking into making it an optional opt-in to keep the core "tiny."
+
+| Feature | Size Cost | Status |
+| :--- | :--- | :--- |
+| **Dictionary Encoding** | +20 KB | Coming Soon |
+| **Row Group Control** | +5 KB | Coming Soon |
+| **Nested Types** | +60 KB | Planned |
+| **Zstd Compression** | +150 KB | Researching |
 
 **Q: What about TypeScript?**
 A: Full type declarations are included (`*.d.ts`). Just import and go.
