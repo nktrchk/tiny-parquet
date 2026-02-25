@@ -1,6 +1,6 @@
 {
   "name": "tiny-parquet",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Read and write Parquet files in 319KB of WASM. Two functions. Zero dependencies. Runs on Vercel Edge, Cloudflare Workers, Deno, Bun, Node.js, and browsers.",
   "author": "nktrchk",
   "license": "MIT",
