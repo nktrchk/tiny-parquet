@@ -5,6 +5,7 @@ use parquet2::{
     read::{decompress, get_page_iterator, read_metadata},
     page::Page,
     schema::types::{PhysicalType, PrimitiveLogicalType},
+    encoding::Encoding,
 };
 use wasm_bindgen::prelude::*;
 
@@ -20,6 +21,106 @@ fn type_label(phys: PhysicalType, logical: &Option<PrimitiveLogicalType>) -> &'s
         (PhysicalType::ByteArray, _) => "string",
         _ => "binary",
     }
+}
+
+// ── Dictionary helpers ──────────────────────────────────────────────────────
+
+/// Decode a PLAIN-encoded dictionary of byte arrays (strings).
+/// Returns a Vec of string values.
+fn decode_dict_binary(buf: &[u8]) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut off = 0;
+    while off + 4 <= buf.len() {
+        let len = u32::from_le_bytes(buf[off..off + 4].try_into().unwrap()) as usize;
+        off += 4;
+        if off + len > buf.len() { break; }
+        let s = std::str::from_utf8(&buf[off..off + len]).unwrap_or("<binary>");
+        values.push(s.to_string());
+        off += len;
+    }
+    values
+}
+
+/// Decode RLE/bit-packed hybrid encoded dictionary indices.
+/// The buffer starts with a 1-byte bit_width, then RLE/bit-packed data.
+fn decode_rle_dict_indices(buf: &[u8], num_values: usize) -> Vec<u32> {
+    if buf.is_empty() {
+        return vec![0; num_values];
+    }
+
+    let bit_width = buf[0] as usize;
+    let mut indices = Vec::with_capacity(num_values);
+    let mut pos = 1; // skip bit_width byte
+
+    if bit_width == 0 {
+        // All values are the same dictionary entry (index 0)
+        return vec![0; num_values];
+    }
+
+    while pos < buf.len() && indices.len() < num_values {
+        if pos >= buf.len() { break; }
+
+        // Read ULEB128 header
+        let mut header: u64 = 0;
+        let mut shift = 0;
+        loop {
+            if pos >= buf.len() { break; }
+            let byte = buf[pos] as u64;
+            pos += 1;
+            header |= (byte & 0x7F) << shift;
+            shift += 7;
+            if byte & 0x80 == 0 { break; }
+        }
+
+        if header & 1 == 1 {
+            // Bit-packed: groups of 8 values
+            let num_groups = (header >> 1) as usize;
+            let num_vals = num_groups * 8;
+            let total_bits = num_vals * bit_width;
+            let total_bytes = (total_bits + 7) / 8;
+
+            let data_start = pos;
+            let data_end = (pos + total_bytes).min(buf.len());
+
+            for i in 0..num_vals {
+                if indices.len() >= num_values { break; }
+                let bit_offset = i * bit_width;
+                let byte_offset = data_start + bit_offset / 8;
+                let bit_shift = bit_offset % 8;
+
+                if byte_offset >= data_end { break; }
+
+                let mut val: u32 = 0;
+                let bytes_needed = ((bit_shift + bit_width) + 7) / 8;
+                for b in 0..bytes_needed {
+                    if byte_offset + b < data_end {
+                        val |= (buf[byte_offset + b] as u32) << (b * 8);
+                    }
+                }
+                val >>= bit_shift as u32;
+                val &= (1u32 << bit_width) - 1;
+                indices.push(val);
+            }
+            pos = data_end;
+        } else {
+            // RLE: repeat a value
+            let count = (header >> 1) as usize;
+            let byte_width = (bit_width + 7) / 8;
+            let mut val: u32 = 0;
+            for b in 0..byte_width {
+                if pos + b < buf.len() {
+                    val |= (buf[pos + b] as u32) << (b * 8);
+                }
+            }
+            pos += byte_width;
+            for _ in 0..count {
+                if indices.len() >= num_values { break; }
+                indices.push(val);
+            }
+        }
+    }
+
+    indices
 }
 
 /// Decode PLAIN-encoded page buffer into a JS Array.
@@ -149,15 +250,47 @@ pub fn read_parquet(data: &Uint8Array, max_rows: Option<u32>) -> Result<JsValue,
 
             let arr = Array::new();
             let mut total = 0usize;
+            let mut dict: Option<Vec<String>> = None;
 
             for maybe in pages {
                 if total >= limit { break; }
                 let cp = maybe.map_err(|e| JsValue::from_str(&format!("page: {}", e)))?;
                 let page = decompress(cp, &mut vec![])
                     .map_err(|e| JsValue::from_str(&format!("decomp: {}", e)))?;
-                if let Page::Data(dp) = page {
-                    let nv = dp.num_values();
-                    total += decode_plain(dp.buffer(), phys, nv, &arr, limit - total);
+
+                match page {
+                    Page::Dict(dp) => {
+                        // Store dictionary for subsequent data pages
+                        dict = Some(decode_dict_binary(dp.buffer.as_slice()));
+                    }
+                    Page::Data(dp) => {
+                        let nv = dp.num_values();
+                        let encoding = dp.encoding();
+
+                        match encoding {
+                            Encoding::RleDictionary | Encoding::PlainDictionary => {
+                                // Dictionary-encoded page
+                                if let Some(ref dict_values) = dict {
+                                    let indices = decode_rle_dict_indices(dp.buffer(), nv);
+                                    let remaining = limit - total;
+                                    let n = nv.min(remaining);
+                                    for i in 0..n {
+                                        let idx = indices[i] as usize;
+                                        if idx < dict_values.len() {
+                                            arr.push(&JsValue::from_str(&dict_values[idx]));
+                                        } else {
+                                            arr.push(&JsValue::from_str("<invalid>"));
+                                        }
+                                    }
+                                    total += n;
+                                }
+                            }
+                            _ => {
+                                // PLAIN encoding (existing path)
+                                total += decode_plain(dp.buffer(), phys, nv, &arr, limit - total);
+                            }
+                        }
+                    }
                 }
             }
 

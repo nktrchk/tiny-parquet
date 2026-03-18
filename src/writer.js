@@ -102,6 +102,7 @@ function handleError(f, args) {
 function getImports() {
   const wbg = { __proto__: null };
   wbg.__wbg___wbindgen_is_falsy_7b47cfa682bded80 = (a) => !getObject(a);
+  wbg.__wbg___wbindgen_is_undefined_1296fcc83c2da07a = (a) => getObject(a) === undefined;
   wbg.__wbg___wbindgen_number_get_3330675b4e5c3680 = (arg0, arg1) => {
     const obj = getObject(arg1);
     const ret = typeof obj === 'number' ? obj : undefined;
@@ -177,6 +178,7 @@ async function init() {
  * @param {Record<string, any[]>} data - Columnar data keyed by column name.
  * @param {Object} [config] - Optional configuration.
  * @param {string} [config.compression='snappy'] - 'snappy' | 'none'
+ * @param {boolean} [config.dictionary=true] - Dictionary encoding for string columns
  * @returns {Promise<Uint8Array>} The Parquet file bytes.
  *
  * @example

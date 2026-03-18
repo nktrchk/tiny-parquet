@@ -5,7 +5,7 @@ use parquet2::{
     compression::CompressionOptions,
     encoding::Encoding,
     metadata::{Descriptor, SchemaDescriptor},
-    page::{CompressedPage, DataPage, DataPageHeader, DataPageHeaderV1, Page},
+    page::{CompressedPage, DataPage, DataPageHeader, DataPageHeaderV1, DictPage, Page},
     schema::{
         types::{
             FieldInfo, ParquetType, PhysicalType, PrimitiveConvertedType, PrimitiveLogicalType,
@@ -81,6 +81,16 @@ fn plain_header(n: usize) -> DataPageHeader {
     })
 }
 
+fn dict_header(n: usize) -> DataPageHeader {
+    DataPageHeader::V1(DataPageHeaderV1 {
+        num_values: n as i32,
+        encoding: Encoding::RleDictionary.into(),
+        definition_level_encoding: Encoding::Plain.into(),
+        repetition_level_encoding: Encoding::Plain.into(),
+        statistics: None,
+    })
+}
+
 fn encode_i32(vals: &[i32], d: &Descriptor) -> Page {
     let mut b = Vec::with_capacity(vals.len() * 4);
     for v in vals { b.extend_from_slice(&v.to_le_bytes()); }
@@ -123,6 +133,142 @@ fn encode_binary(vals: &[Vec<u8>], d: &Descriptor) -> Page {
     Page::Data(DataPage::new(plain_header(vals.len()), b, d.clone(), Some(vals.len())))
 }
 
+// ── Dictionary encoding helpers ─────────────────────────────────────────────
+
+/// Number of bits needed to represent values 0..n-1
+fn num_bits(n: usize) -> u32 {
+    if n <= 1 { return 0; }
+    (usize::BITS - (n - 1).leading_zeros())
+}
+
+/// Encode u32 indices using RLE/bit-packed hybrid encoding (parquet spec)
+fn rle_encode_indices(indices: &[u32], bit_width: u32) -> Vec<u8> {
+    let mut buf = Vec::new();
+    // bit_width byte prefix (required by Parquet for dict pages)
+    buf.push(bit_width as u8);
+
+    if bit_width == 0 {
+        // All values are the same (single dictionary entry), write RLE run
+        // RLE header: (count << 1) | 0
+        let count = indices.len() as u64;
+        let header = count << 1;
+        let mut h = header;
+        loop {
+            let byte = (h & 0x7F) as u8;
+            h >>= 7;
+            if h == 0 {
+                buf.push(byte);
+                break;
+            }
+            buf.push(byte | 0x80);
+        }
+        // value = 0 in ceil(bit_width/8) bytes, but bit_width=0 means 0 bytes... 
+        // Actually per spec, min bit_width for RLE is 1
+        return buf;
+    }
+
+    // Use bit-packed encoding (simpler, works well for random indices)
+    let num_values = indices.len();
+    let num_groups = (num_values + 7) / 8; // groups of 8
+
+    // bit-packed header: (num_groups << 1) | 1
+    let header = ((num_groups as u64) << 1) | 1;
+    let mut h = header;
+    loop {
+        let byte = (h & 0x7F) as u8;
+        h >>= 7;
+        if h == 0 {
+            buf.push(byte);
+            break;
+        }
+        buf.push(byte | 0x80);
+    }
+
+    // bit-pack the values
+    let total_bits = num_groups * 8 * bit_width as usize;
+    let total_bytes = (total_bits + 7) / 8;
+    let start = buf.len();
+    buf.resize(start + total_bytes, 0);
+
+    for (i, &idx) in indices.iter().enumerate() {
+        let bit_offset = i * bit_width as usize;
+        let byte_offset = start + bit_offset / 8;
+        let bit_shift = bit_offset % 8;
+        
+        // Write the value across potentially multiple bytes
+        let mut val = (idx as u64) << bit_shift;
+        let bytes_needed = ((bit_shift + bit_width as usize) + 7) / 8;
+        for b in 0..bytes_needed {
+            if byte_offset + b < buf.len() {
+                buf[byte_offset + b] |= (val & 0xFF) as u8;
+            }
+            val >>= 8;
+        }
+    }
+
+    buf
+}
+
+/// Build dictionary-encoded pages for a binary/string column.
+/// Returns (dict_page, data_page).
+fn encode_binary_dict(vals: &[Vec<u8>], d: &Descriptor) -> Vec<Page> {
+    // Build dictionary: map unique values -> index
+    let mut dict_values: Vec<Vec<u8>> = Vec::new();
+    let mut value_to_idx: std::collections::HashMap<Vec<u8>, u32> = std::collections::HashMap::new();
+    let mut indices: Vec<u32> = Vec::with_capacity(vals.len());
+
+    for v in vals {
+        let idx = if let Some(&existing) = value_to_idx.get(v) {
+            existing
+        } else {
+            let new_idx = dict_values.len() as u32;
+            value_to_idx.insert(v.clone(), new_idx);
+            dict_values.push(v.clone());
+            new_idx
+        };
+        indices.push(idx);
+    }
+
+    let num_dict_values = dict_values.len();
+    let bits = num_bits(num_dict_values).max(1); // min 1 bit per parquet spec
+
+    // Dictionary page: PLAIN-encoded unique values (length-prefixed byte arrays)
+    let dict_total: usize = dict_values.iter().map(|v| 4 + v.len()).sum();
+    let mut dict_buf = Vec::with_capacity(dict_total);
+    for v in &dict_values {
+        dict_buf.extend_from_slice(&(v.len() as u32).to_le_bytes());
+        dict_buf.extend_from_slice(v);
+    }
+    let dict_page = Page::Dict(DictPage::new(dict_buf, num_dict_values, false));
+
+    // Data page: RLE/bit-packed encoded indices
+    let rle_buf = rle_encode_indices(&indices, bits);
+    let data_page = Page::Data(DataPage::new(
+        dict_header(vals.len()),
+        rle_buf,
+        d.clone(),
+        Some(vals.len()),
+    ));
+
+    vec![dict_page, data_page]
+}
+
+/// Check if dictionary encoding is worthwhile: cardinality < 50% of row count
+fn should_use_dict(num_unique: usize, num_total: usize) -> bool {
+    if num_total == 0 { return false; }
+    // Use dictionary if unique values < 50% of total (good compression ratio)
+    num_unique * 2 < num_total || num_unique <= 256
+}
+
+/// Count unique values in a string column
+fn count_unique(vals: &[Vec<u8>]) -> usize {
+    let mut seen = std::collections::HashSet::new();
+    for v in vals {
+        seen.insert(v.as_slice());
+    }
+    seen.len()
+}
+
 #[wasm_bindgen(js_name = "writeParquet")]
 pub fn write_parquet(
     schema_js: &JsValue,
@@ -137,6 +283,18 @@ pub fn write_parquet(
         }
     } else {
         CompressionOptions::Snappy
+    };
+
+    // Dictionary config: default true
+    // Note: Reflect::get returns Ok(undefined) when key is missing, NOT Err
+    let use_dict = if let Ok(d) = Reflect::get(config_js, &"dictionary".into()) {
+        if d.is_undefined() {
+            true // key not present → default ON
+        } else {
+            d.is_truthy() // explicit true/false
+        }
+    } else {
+        true
     };
 
     let schema_arr: &Array = schema_js
@@ -203,41 +361,46 @@ pub fn write_parquet(
         let len = arr.length() as usize;
         let desc = columns[i].descriptor.clone();
 
-        let page = match ct {
+        let pages: Vec<Page> = match ct {
             ColType::Int32 => {
                 let v: Vec<i32> = (0..len).map(|j| arr.get(j as u32).as_f64().unwrap_or(0.0) as i32).collect();
-                encode_i32(&v, &desc)
+                vec![encode_i32(&v, &desc)]
             }
             ColType::Int64 | ColType::TimestampMillis => {
                 let v: Vec<i64> = (0..len).map(|j| arr.get(j as u32).as_f64().unwrap_or(0.0) as i64).collect();
-                encode_i64(&v, &desc)
+                vec![encode_i64(&v, &desc)]
             }
             ColType::Float32 => {
                 let v: Vec<f32> = (0..len).map(|j| arr.get(j as u32).as_f64().unwrap_or(0.0) as f32).collect();
-                encode_f32(&v, &desc)
+                vec![encode_f32(&v, &desc)]
             }
             ColType::Float64 => {
                 let v: Vec<f64> = (0..len).map(|j| arr.get(j as u32).as_f64().unwrap_or(0.0)).collect();
-                encode_f64(&v, &desc)
+                vec![encode_f64(&v, &desc)]
             }
             ColType::Boolean => {
                 let v: Vec<bool> = (0..len).map(|j| arr.get(j as u32).is_truthy()).collect();
-                encode_bool(&v, &desc)
+                vec![encode_bool(&v, &desc)]
             }
             ColType::Str => {
                 let v: Vec<Vec<u8>> = (0..len)
                     .map(|j| arr.get(j as u32).as_string().unwrap_or_default().into_bytes())
                     .collect();
-                encode_binary(&v, &desc)
+                
+                if use_dict && should_use_dict(count_unique(&v), v.len()) {
+                    encode_binary_dict(&v, &desc)
+                } else {
+                    vec![encode_binary(&v, &desc)]
+                }
             }
         };
 
-        let pages = DynStreamingIterator::new(Compressor::new_from_vec(
-            DynIter::new(std::iter::once(Ok(page))),
+        let compressed_pages = DynStreamingIterator::new(Compressor::new_from_vec(
+            DynIter::new(pages.into_iter().map(Ok)),
             compression,
             vec![],
         ));
-        col_iters.push(Ok(pages));
+        col_iters.push(Ok(compressed_pages));
     }
 
     let mut writer = FileWriter::new(Cursor::new(Vec::new()), schema_desc, options, None);

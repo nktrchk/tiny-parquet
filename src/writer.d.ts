@@ -5,6 +5,7 @@ export interface ColumnSchema {
 
 export interface WriteConfig {
     compression?: 'snappy' | 'none';
+    dictionary?: boolean;
 }
 
 /**
