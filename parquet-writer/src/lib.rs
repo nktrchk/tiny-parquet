@@ -209,64 +209,58 @@ fn rle_encode_indices(indices: &[u32], bit_width: u32) -> Vec<u8> {
     buf
 }
 
-/// Build dictionary-encoded pages for a binary/string column.
-/// Returns (dict_page, data_page).
-fn encode_binary_dict(vals: &[Vec<u8>], d: &Descriptor) -> Vec<Page> {
-    // Build dictionary: map unique values -> index
-    let mut dict_values: Vec<Vec<u8>> = Vec::new();
-    let mut value_to_idx: std::collections::HashMap<Vec<u8>, u32> = std::collections::HashMap::new();
-    let mut indices: Vec<u32> = Vec::with_capacity(vals.len());
+/// Try to dictionary-encode a binary column in a single pass.
+/// Uses Vec linear search (cache-friendly for <256 unique values).
+/// Returns None and falls back to plain if cardinality is too high.
+fn try_encode_dict(vals: &[Vec<u8>], d: &Descriptor) -> Option<Vec<Page>> {
+    let n = vals.len();
+    if n == 0 { return None; }
+
+    // Max 256 unique values — keeps Vec linear search fast (≤256 comparisons)
+    // and produces optimal RLE encoding (≤8 bits per index)
+    let max_unique: usize = 256;
+
+    // Single pass: build dictionary + indices simultaneously
+    let mut dict_values: Vec<&[u8]> = Vec::with_capacity(64);
+    let mut indices: Vec<u32> = Vec::with_capacity(n);
 
     for v in vals {
-        let idx = if let Some(&existing) = value_to_idx.get(v) {
-            existing
-        } else {
-            let new_idx = dict_values.len() as u32;
-            value_to_idx.insert(v.clone(), new_idx);
-            dict_values.push(v.clone());
-            new_idx
-        };
-        indices.push(idx);
+        // Linear search in dict (fast for <256 entries, cache-friendly)
+        let idx = dict_values.iter().position(|d| *d == v.as_slice());
+        match idx {
+            Some(i) => indices.push(i as u32),
+            None => {
+                if dict_values.len() >= max_unique {
+                    return None; // too many unique values, fall back to plain
+                }
+                indices.push(dict_values.len() as u32);
+                dict_values.push(v.as_slice());
+            }
+        }
     }
 
-    let num_dict_values = dict_values.len();
-    let bits = num_bits(num_dict_values).max(1); // min 1 bit per parquet spec
+    let num_dict = dict_values.len();
+    let bits = num_bits(num_dict).max(1);
 
-    // Dictionary page: PLAIN-encoded unique values (length-prefixed byte arrays)
+    // Dictionary page: PLAIN-encoded unique values
     let dict_total: usize = dict_values.iter().map(|v| 4 + v.len()).sum();
     let mut dict_buf = Vec::with_capacity(dict_total);
     for v in &dict_values {
         dict_buf.extend_from_slice(&(v.len() as u32).to_le_bytes());
         dict_buf.extend_from_slice(v);
     }
-    let dict_page = Page::Dict(DictPage::new(dict_buf, num_dict_values, false));
+    let dict_page = Page::Dict(DictPage::new(dict_buf, num_dict, false));
 
     // Data page: RLE/bit-packed encoded indices
     let rle_buf = rle_encode_indices(&indices, bits);
     let data_page = Page::Data(DataPage::new(
-        dict_header(vals.len()),
+        dict_header(n),
         rle_buf,
         d.clone(),
-        Some(vals.len()),
+        Some(n),
     ));
 
-    vec![dict_page, data_page]
-}
-
-/// Check if dictionary encoding is worthwhile: cardinality < 50% of row count
-fn should_use_dict(num_unique: usize, num_total: usize) -> bool {
-    if num_total == 0 { return false; }
-    // Use dictionary if unique values < 50% of total (good compression ratio)
-    num_unique * 2 < num_total || num_unique <= 256
-}
-
-/// Count unique values in a string column
-fn count_unique(vals: &[Vec<u8>]) -> usize {
-    let mut seen = std::collections::HashSet::new();
-    for v in vals {
-        seen.insert(v.as_slice());
-    }
-    seen.len()
+    Some(vec![dict_page, data_page])
 }
 
 #[wasm_bindgen(js_name = "writeParquet")]
@@ -387,8 +381,8 @@ pub fn write_parquet(
                     .map(|j| arr.get(j as u32).as_string().unwrap_or_default().into_bytes())
                     .collect();
                 
-                if use_dict && should_use_dict(count_unique(&v), v.len()) {
-                    encode_binary_dict(&v, &desc)
+                if use_dict {
+                    try_encode_dict(&v, &desc).unwrap_or_else(|| vec![encode_binary(&v, &desc)])
                 } else {
                     vec![encode_binary(&v, &desc)]
                 }

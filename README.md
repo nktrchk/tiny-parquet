@@ -239,14 +239,15 @@ A: Full `.d.ts` declarations included. Just import and go.
 - Writer JS glue updated — new `__wbindgen_is_undefined` import added
 
 **What's new for users:**
-- Clickstream data (country, browser, device...) → **50–76% smaller** files with zero config change
+- Clickstream data (country, browser, device...) → **41% smaller** files with zero config change
+- **7% faster writes** — single-pass Vec-based encoder, no HashMap, no pre-scan
+- **Faster reads** — less data to decompress
 - Files are standard Parquet — validated with **PyArrow** (Apache Arrow reference implementation)
 - Dictionary + Snappy compression stack for maximum savings
 - Existing files still read correctly (full backward compatibility)
 
 **What didn't change:**
 - API unchanged — `writeParquet(schema, data, config)` / `readParquet(bytes)`
-- Total WASM size still **306KB** (writer 173KB + reader 133KB)
 - All 27 existing tests pass, zero regressions
 
 **⚠️ Breaking (internal):** WASM binaries were recompiled. If you vendor the `.wasm` files, update both `writer.wasm` and `reader.wasm` together.
